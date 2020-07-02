@@ -21,7 +21,7 @@ class GeneticFit():
     
     def fitness(self, individual, data):
         print("####################")
-        print("Net has dimensions: ", individual.layers)
+        print("Net has dimensions: ", individual.layer_dimensions)
         fitness = individual.evaluate(self.validation_set[0], self.validation_set[1])
 
         self.seen += 1
@@ -69,7 +69,7 @@ class GeneticFit():
                                generations=self.num_generations,
                                crossover_probability=0.0,
                                mutation_probability=0.5,
-                               elitism=True,
+                               elitism=False,
                                maximise_fitness=True)
 
         ga.create_individual = self.create_individual
