@@ -3,22 +3,23 @@ from tensorflow import keras
 from tensorflow.keras import layers
 
 class ClassifierNet():
-    def __init__(self, input_shape, num_classes, verbose = 1):
-        self.model = keras.Sequential([
-        keras.Input(shape=input_shape),
-        layers.Conv2D(32, kernel_size=(3, 3), activation="relu"),
-        layers.MaxPooling2D(pool_size=(2, 2)),
-        layers.Conv2D(64, kernel_size=(3, 3), activation="relu"),
-        layers.MaxPooling2D(pool_size=(2, 2)),
-        layers.Flatten(),
-        layers.Dropout(0.5),
-        layers.Dense(num_classes, activation="softmax"),
-        ])
+    def __init__(self, input_shape=(28, 28, 1), num_classes=10, layer_dimensions=[70], verbose = 0):
+        self.layer_dimensions = layer_dimensions
 
+        input_layer = [keras.Input(shape=(28, 28, 1)), layers.Flatten()]
+        inner_layers = [layers.Dense(num_units, activation="relu") for num_units in layer_dimensions]
+        output_layer = [layers.Dense(num_classes, activation="softmax")]
+
+        sequential_layers = input_layer + inner_layers + output_layer
+
+        self.model = keras.Sequential(sequential_layers)
         self.model.compile(loss="categorical_crossentropy", optimizer="adam", metrics=["accuracy"])
 
         if (verbose):
             self.model.summary()
+    
+    def mutate_layout(self, layer_dimensions=[70]):
+        print("")
 
     
     def train(self, x_train, y_train, batch_size=128, epochs=1, validation_split=0.1, save = False, verbose = False):
@@ -27,11 +28,3 @@ class ClassifierNet():
     def evaluate(self, x_set, y_set, verbose=0):
         score = self.model.evaluate(x_set, y_set, verbose=0)
         return score
-
-
-
-"""
-fcs = []
-for i in range(len(full_layers) - 1):
-    fcs.append(nn.Linear(full_layers[i], full_layers[i + 1]).to(device))
-"""
