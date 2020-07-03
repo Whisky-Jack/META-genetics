@@ -11,7 +11,7 @@ class ClassifierNet():
         self.num_classes = num_classes
         self.layer_dimensions = layer_dimensions
 
-        self.max_layer_size = 5
+        self.max_layer_size = 15
         self.input_layer_size = 784
 
         self.instantiate_model()
@@ -50,7 +50,7 @@ class ClassifierNet():
     def get_weights(self):
         model_weights = np.array([])
         for lay in self.model.layers:
-            print(lay.name)
+            #print(lay.name)
             layer_weights = lay.get_weights()
             if len(layer_weights) > 0:
                 if layer_weights[0].shape[0] > self.max_layer_size:
@@ -84,4 +84,45 @@ class ClassifierNet():
         input_width = self.input_layer_size*self.max_layer_size + self.max_layer_size
         middle_width = self.max_layer_size*self.max_layer_size + self.max_layer_size
 
-        print("K")
+        pred_input_layer = prediction[:input_width]
+        pred_other_layers = prediction[input_width:]
+
+        other_layers = pred_other_layers.reshape(-1, middle_width)
+        pred_middle_layers = other_layers[:-1]
+        pred_output_layer = other_layers[-1]
+
+        model_input_layer = self.model.layers[1]
+        model_middle_layers = self.model.layers[2:-1]
+        model_output_layer = self.model.layers[-1]
+
+        input_layer_weights = model_input_layer.get_weights()
+        new_weights = self.load_layer(input_layer_weights, pred_input_layer, self.input_layer_size, self.max_layer_size)
+        model_input_layer.set_weights(new_weights)
+
+        output_layer_weights = model_output_layer.get_weights()
+        new_weights = self.load_layer(output_layer_weights, pred_output_layer, self.max_layer_size, self.max_layer_size)
+        model_output_layer.set_weights(new_weights)
+
+        for lay, pred_lay in zip(model_middle_layers, pred_middle_layers):
+            #print(lay.name)
+            layer_weights = lay.get_weights()
+            new_weights = self.load_layer(layer_weights, pred_lay, self.max_layer_size, self.max_layer_size)
+            lay.set_weights(new_weights)
+
+    def load_layer(self, actual_layer, pred_layer, input_shape, output_shape):
+    
+        weights = actual_layer[0]
+        biases = actual_layer[1]
+
+        output_dim, input_dim = weights.shape[0], weights.shape[1]
+
+        # NOTE: reshaping according to output shape will break if num_classes is smaller than maximum size due to padding in get_weights
+        pred_layer = pred_layer.reshape(-1, output_shape)
+        pred_layer_biases = pred_layer[-1, :]
+        pred_layer_weights = pred_layer[:-1, :]
+
+        pred_layer_weights = pred_layer_weights[:output_dim, :input_dim]
+        pred_layer_biases = pred_layer_biases[:biases.shape[0]]
+
+        model_set_weights = [pred_layer_weights, pred_layer_biases]
+        return model_set_weights
