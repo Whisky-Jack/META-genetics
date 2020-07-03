@@ -1,8 +1,84 @@
+import numpy as np
 import gym
 from gym import spaces
 from gym.envs.classic_control import rendering
 
+from classifier_net import ClassifierNet
+
 # DEFINE ENVIRONMENT
+class PredictorEnvironment(gym.Env):
+    """
+    Custom environment implementing openAI gym interface
+    """
+    def __init__(self, training_set, validation_set):
+        # Define action and observation space
+        # Set parameters
+        MAX_LAYERS = 3
+        MAX_UNITS = 100
+
+        # Set up action space
+        N_CONTINUOUS_ACTIONS = 33920 // 2 # MAX_LAYERS * MAX_UNITS
+        self.action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(N_CONTINUOUS_ACTIONS,))
+
+        # Set up observation
+        N_CONTINUOUS_OBSERVATIONS = 33920 #2 * MAX_LAYERS * MAX_UNITS
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(N_CONTINUOUS_OBSERVATIONS,))
+
+        # Set up data
+        self.training_set = training_set
+        self.validation_set = validation_set
+
+        self.individual = ClassifierNet()
+        self.maxlen = 100
+        self.trained = False
+    
+    def reset(self):
+        self.individual= ClassifierNet()
+        self.individual.train(self.training_set[0], self.training_set[1])
+
+        self.default_individual = ClassifierNet(layer_dimensions=self.individual.layer_dimensions)
+
+        # Mutate classifier net
+        self.default_individual.mutate_layout()
+
+        return self.get_state()
+    
+    def compute_reward(self, default_training_data, pred_training_data):
+        default_losses = np.array(default_training_data['loss'])
+        pred_losses = np.array(pred_training_data['loss'])
+
+        performance_gain = default_losses - pred_losses
+        return 0 if performance_gain < 0 else performance_gain
+    
+    def step(self, pred_weights):
+
+        pred_individual = ClassifierNet.load_from_prediction(pred_weights.reshape())
+
+        self.default_individual.train(self.training_set[0], self.training_set[1])
+        pred_individual.train(self.training_set[0], self.training_set[1])
+
+        reward = self.compute_reward(default_individual.get_training_data(), pred_individual.get_training_data())
+        observations = self.get_state()
+        done = True
+        info = {}
+        return observations, reward, done, info
+    
+    def get_state(self):
+        old_individual_weights = self.individual.get_weights()
+        new_individual_weights = self.default_individual.get_weights()
+        new_individual_weights[new_individual_weights > 0.0] = 1.0
+
+        curr_state = np.concatenate((old_individual_weights, new_individual_weights))
+        return curr_state
+
+    def render(self, mode='human'):
+        print("Render not implemented")
+    
+    def close(self):
+        print("Close not implemented")
+
+
+
 class GeneticEnvironment(gym.Env):
     """
     Custom environment implementing openAI gym interface
