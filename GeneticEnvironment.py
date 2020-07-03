@@ -52,12 +52,13 @@ class PredictorEnvironment(gym.Env):
     
     def step(self, pred_weights):
 
-        pred_individual = ClassifierNet.load_from_prediction(pred_weights.reshape())
+        pred_individual = ClassifierNet()
+        pred_individual.load_from_prediction(pred_weights)
 
         self.default_individual.train(self.training_set[0], self.training_set[1])
         pred_individual.train(self.training_set[0], self.training_set[1])
 
-        reward = self.compute_reward(default_individual.get_training_data(), pred_individual.get_training_data())
+        reward = self.compute_reward(self.default_individual.get_training_data(), pred_individual.get_training_data())
         observations = self.get_state()
         done = True
         info = {}
@@ -69,6 +70,7 @@ class PredictorEnvironment(gym.Env):
         new_individual_weights[new_individual_weights > 0.0] = 1.0
 
         curr_state = np.concatenate((old_individual_weights, new_individual_weights))
+        print("OBSERVATIONS: ", curr_state.shape)
         return curr_state
 
     def render(self, mode='human'):

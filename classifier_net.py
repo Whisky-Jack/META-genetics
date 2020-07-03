@@ -11,7 +11,7 @@ class ClassifierNet():
         self.num_classes = num_classes
         self.layer_dimensions = layer_dimensions
 
-        self.max_layer_size = 15
+        self.max_layer_size = 20
         self.input_layer_size = 784
 
         self.instantiate_model()
@@ -31,7 +31,7 @@ class ClassifierNet():
     
     def mutate_layout(self):
         num_layers = len(self.layer_dimensions)
-        new_layer_index = random.randint(0, num_layers)
+        new_layer_index = random.randint(0, num_layers - 1)
         new_layer_size = random.randint(int(self.max_layer_size / 3), self.max_layer_size)
 
         self.layer_dimensions[new_layer_index] = new_layer_size
@@ -48,6 +48,7 @@ class ClassifierNet():
         return self.history.history #self.model.history.history
     
     def get_weights(self):
+        # TODO: Clean this up like load_from_prediction
         model_weights = np.array([])
         for lay in self.model.layers:
             #print(lay.name)
