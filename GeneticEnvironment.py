@@ -16,61 +16,69 @@ class PredictorEnvironment(gym.Env):
         MAX_LAYERS = 3
         MAX_UNITS = 100
 
+        # Set up observation
+        N_CONTINUOUS_OBSERVATIONS = 420
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(3, N_CONTINUOUS_OBSERVATIONS))
+
         # Set up action space
-        N_CONTINUOUS_ACTIONS = 33920 // 2 # MAX_LAYERS * MAX_UNITS
+        N_CONTINUOUS_ACTIONS = 3*420
         self.action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(N_CONTINUOUS_ACTIONS,))
 
-        # Set up observation
-        N_CONTINUOUS_OBSERVATIONS = 33920 #2 * MAX_LAYERS * MAX_UNITS
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(N_CONTINUOUS_OBSERVATIONS,))
 
         # Set up data
         self.training_set = training_set
         self.validation_set = validation_set
 
-        self.individual = ClassifierNet()
         self.maxlen = 100
         self.trained = False
-    
-    def reset(self):
+
+
         self.individual= ClassifierNet()
-        self.individual.train(self.training_set[0], self.training_set[1])
+        print("Training base:")
+        self.individual.train(self.training_set[0], self.training_set[1], epochs=1)
 
         self.default_individual = ClassifierNet(layer_dimensions=self.individual.layer_dimensions)
 
         # Mutate classifier net
         self.default_individual.mutate_layout()
 
+        print("Training default initialization:")
+        self.default_individual.train(self.training_set[0], self.training_set[1], epochs=1)
+    
+    def reset(self):
         return self.get_state()
     
     def compute_reward(self, default_training_data, pred_training_data):
         default_losses = np.array(default_training_data['loss'])
         pred_losses = np.array(pred_training_data['loss'])
 
-        performance_gain = default_losses - pred_losses
-        return 0 if performance_gain < 0 else performance_gain
+        #performance_gain = np.sum(default_losses - pred_losses)
+        return -10*(np.sum(np.array(pred_training_data['loss'])))**3#performance_gain #pred_losses if performance_gain < 0 else performance_gain
     
     def step(self, pred_weights):
 
-        pred_individual = ClassifierNet()
-        pred_individual.load_from_prediction(pred_weights)
+        pred_individual = ClassifierNet(layer_dimensions=self.default_individual.layer_dimensions)
+        pred_individual.load_from_lstm_prediction(pred_weights)
+    
+        #print("Training default initialization:")
+        #self.default_individual.train(self.training_set[0], self.training_set[1])
 
-        self.default_individual.train(self.training_set[0], self.training_set[1])
+        print("Training RL initialization:")
         pred_individual.train(self.training_set[0], self.training_set[1])
 
         reward = self.compute_reward(self.default_individual.get_training_data(), pred_individual.get_training_data())
+        print("Reward: ", reward)
         observations = self.get_state()
         done = True
         info = {}
         return observations, reward, done, info
     
     def get_state(self):
-        old_individual_weights = self.individual.get_weights()
-        new_individual_weights = self.default_individual.get_weights()
+        old_individual_weights = self.individual.get_lstm_weights()#.flatten()
+        new_individual_weights = self.default_individual.get_lstm_weights()
         new_individual_weights[new_individual_weights > 0.0] = 1.0
 
-        curr_state = np.concatenate((old_individual_weights, new_individual_weights))
-        print("OBSERVATIONS: ", curr_state.shape)
+        curr_state = old_individual_weights #np.concatenate((old_individual_weights, new_individual_weights))
         return curr_state
 
     def render(self, mode='human'):
@@ -78,6 +86,13 @@ class PredictorEnvironment(gym.Env):
     
     def close(self):
         print("Close not implemented")
+    
+    def mutate_for_supervised(self):
+        num_layers = len(self.layer_dimensions)
+        new_layer_index = random.randint(0, num_layers - 1)
+        new_layer_size = random.randint(int(self.max_layer_size / 3), self.max_layer_size)
+
+        self.layer_dimensions[new_layer_index] = new_layer_size
 
 
 

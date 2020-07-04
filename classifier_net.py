@@ -6,7 +6,7 @@ import random
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 class ClassifierNet():
-    def __init__(self, input_shape=(28, 28, 1), num_classes=10, layer_dimensions=[3, 3, 3], verbose = 0):
+    def __init__(self, input_shape=(28, 28, 1), num_classes=10, layer_dimensions=[15, 15, 15], verbose = 0):
         self.input_shape = input_shape
         self.num_classes = num_classes
         self.layer_dimensions = layer_dimensions
@@ -99,6 +99,58 @@ class ClassifierNet():
         input_layer_weights = model_input_layer.get_weights()
         new_weights = self.load_layer(input_layer_weights, pred_input_layer, self.input_layer_size, self.max_layer_size)
         model_input_layer.set_weights(new_weights)
+
+        output_layer_weights = model_output_layer.get_weights()
+        new_weights = self.load_layer(output_layer_weights, pred_output_layer, self.max_layer_size, self.max_layer_size)
+        model_output_layer.set_weights(new_weights)
+
+        for lay, pred_lay in zip(model_middle_layers, pred_middle_layers):
+            #print(lay.name)
+            layer_weights = lay.get_weights()
+            new_weights = self.load_layer(layer_weights, pred_lay, self.max_layer_size, self.max_layer_size)
+            lay.set_weights(new_weights)
+        
+    def get_lstm_weights(self):
+        model_weights = []
+        for lay in self.model.layers:
+            #print(lay.name)
+            layer_weights = lay.get_weights()
+            if len(layer_weights) > 0 and layer_weights[0].shape[0] <= self.max_layer_size:
+                # If not input layer
+                layer_width = self.max_layer_size
+                total_width = self.max_layer_size*self.max_layer_size + self.max_layer_size
+
+                weights = layer_weights[0]
+                padded_weights = pad_sequences(weights, maxlen=self.max_layer_size, padding='post', dtype='float32')
+
+                extra_padding = np.array([np.zeros(self.max_layer_size) for i in range(layer_width - len(weights))])
+                if (extra_padding.shape[0] > 0):
+                    padded_weights = np.concatenate((padded_weights, extra_padding))
+
+                padded_weights = [padded_weights.flatten()]
+                padded_weights = pad_sequences(padded_weights, maxlen=total_width, padding='post', dtype='float32')
+
+                biases = [layer_weights[1]]
+                padded_biases = pad_sequences(biases, maxlen=self.max_layer_size, padding='post', dtype='float32')
+                padded_biases = pad_sequences(padded_biases, maxlen=total_width, padding='pre', dtype='float32')
+
+                combined = padded_weights[0] + padded_biases[0]
+                model_weights.append(combined)
+        return np.array(model_weights)
+    
+    def load_from_lstm_prediction(self, prediction):
+        #input_width = self.input_layer_size*self.max_layer_size + self.max_layer_size
+        middle_width = self.max_layer_size*self.max_layer_size + self.max_layer_size
+
+        #pred_input_layer = prediction[:input_width]
+        pred_other_layers = prediction
+
+        other_layers = pred_other_layers.reshape(-1, middle_width)
+        pred_middle_layers = other_layers[:-1]
+        pred_output_layer = other_layers[-1]
+
+        model_middle_layers = self.model.layers[2:-1]
+        model_output_layer = self.model.layers[-1]
 
         output_layer_weights = model_output_layer.get_weights()
         new_weights = self.load_layer(output_layer_weights, pred_output_layer, self.max_layer_size, self.max_layer_size)
